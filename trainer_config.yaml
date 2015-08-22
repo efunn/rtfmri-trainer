@@ -1,0 +1,16 @@
+#####################################
+# rtfmri-trainer configuration file #
+#####################################
+
+# experiment-type: timed, block, playback
+experiment-type: block
+subject-id: demo
+fullscreen: False
+
+# timed trial variables
+visible-trials: 2
+invisible-trials: 3
+
+# block trial variables
+block-length: 30 # seconds
+first-trial: continuous # continuous, intermittent, playback

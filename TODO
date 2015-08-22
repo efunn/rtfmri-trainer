@@ -1,0 +1,42 @@
+- Reach target:
+    - N trials of each type
+    - 8 types of trial 2x2x2: (hrf)x(visible)x(dof)
+                              (t/f)x(t/f)x(1/2)
+    - 2s TR w/ 'm' noise from cts/term
+    * Questions:
+        * what would minimum N be?
+        * what would maximum N be?
+        * can we have less trials of the easy one?
+            * ask stats guy: 5 trials of each?
+        try 20 trials, tweak to get:
+        (2+2+6+6+8+16+16+32)*2*20/60
+    # ToDo:
+        # code cleanup
+        # start from left side/bottom left-hand corner
+        # ability to pause
+        # indication to go back to start circle
+- Cts/term:
+    - N trials of each type
+    - 4 types of trial: 2x2 (noise)x(TR)
+                            (l/h)x(2/20)
+    - 1 DOF 
+    - 2 min per trial -- might have to tweak target size 
+                                             or noise level
+
+    * Questions:
+        * N at 7 (56min)
+        * relationship between noise variance and taking the mean
+        * case 1: generate noise at variance s
+        * case 2: generate 10 samples of noise at variance 10*s
+                  and then take the mean   
+- Playback:
+    - N trials of each type
+    - 2 DOF
+    - 2 types of trial: traditional vs. replay
+        - 4 min per trial (tentative)
+        - 6 playback blocks per trial (tentative)
+        - ** try to make playback really really good
+    * Questions:
+        * which 'traditional' experiment type to choose? 2s TR and 'm' noise?
+        * how long to figure out 2 DOF target? Tweak trial length based on this.
+        * N at 8 
