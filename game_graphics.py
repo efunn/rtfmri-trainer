@@ -20,10 +20,6 @@ def draw_center_rect(screen, width, height, color, xpos, ypos):
                        height)
     pygame.draw.rect(screen, color, rect)        
 
-def make_text(text, font, color):
-    text_surface = font.render(text, True, color)
-    return text_surface, text_surface.get_rect()
-
 def draw_msg(screen, text, color=(255,255,255),
              center=(1024/2,768/2), size=50):
     font = pygame.font.Font('freesansbold.ttf', size)
@@ -31,3 +27,6 @@ def draw_msg(screen, text, color=(255,255,255),
     text_rect.center = center
     screen.blit(text_surf, text_rect)
 
+def make_text(text, font, color):
+    text_surface = font.render(text, True, color)
+    return text_surface, text_surface.get_rect()

@@ -81,6 +81,9 @@ class Target(object):
 
     def set_new_target(self):
         self.get_random_pos()
+        self.reset_error_metric()
+
+    def reset_error_metric(self):
         self.error_metric = self.MIN_ERROR_METRIC
         self.error_metric_buffer[:] = self.MIN_ERROR_METRIC
         self.error_metric_conv_buffer[:] = self.MIN_ERROR_METRIC

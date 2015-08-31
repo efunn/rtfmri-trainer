@@ -37,3 +37,18 @@ def filter_data(data, b, a):
 def filter_data_rt(data, b, a):
     y = lfilter(b, a, data)
     return y[-1]
+
+def interp_playback_nfb(game, nfb_points):
+    tr = game.tr
+
+    time_points = tr*np.arange(len(nfb_points)) + 0.5*tr
+    time_points = np.append(0, time_points)
+    time_points = np.append(time_points, time_points[-1] + 0.5*tr)
+
+    nfb_points = np.append(nfb_points[0], nfb_points)
+    nfb_points = np.append(nfb_points, nfb_points[-1])
+
+    nfb_interp_func = interp1d(time_points, nfb_points, kind='cubic')
+
+    # add game.playback_time_buffer and game.move_counter
+    return nfb_interp_func(game.playback_time_buffer[0:game.move_counter+1]/1000.0)

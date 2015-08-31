@@ -8,7 +8,10 @@ class Thermometer(object):
                  target_height = 0.8,
                  max_height = 0.9):
         self.screen = screen
-        self.score_color = (30,150,30)
+        self.SCORE_COLOR_NORM = (30,150,30)
+        self.SCORE_COLOR_GOOD = (160,255,160)
+        self.SCORE_COLOR_BAD = (255,160,160)
+        self.score_color = self.SCORE_COLOR_NORM
         self.MIN_LINE_COLOR = (220,120,120)
         self.TARGET_LINE_COLOR = (220,220,80)
         self.MAX_LINE_COLOR = (120,220,120)
@@ -82,6 +85,14 @@ class Thermometer(object):
         rect.bottom = self.screen_height
         rect.right = self.screen_width
 
+    def set_score_color(self, color_key):
+        if color_key == 'norm':
+            self.score_color = self.SCORE_COLOR_NORM
+        elif color_key == 'good':
+            self.score_color = self.SCORE_COLOR_GOOD
+        elif color_key == 'bad':
+            self.score_color = self.SCORE_COLOR_BAD
+
     def draw(self, active, score_1, score_2 = None):
         pygame.draw.rect(self.screen, self.BG_COLOR, self.bg_rect_left)
         pygame.draw.rect(self.screen, self.BG_COLOR, self.bg_rect_right)
@@ -112,6 +123,3 @@ class Thermometer(object):
             pygame.draw.rect(self.screen, self.TARGET_LINE_COLOR_ALT, self.rect_right_target_score)
             pygame.draw.rect(self.screen, self.MAX_LINE_COLOR_ALT, self.rect_left_max_score)
             pygame.draw.rect(self.screen, self.MAX_LINE_COLOR_ALT, self.rect_right_max_score)
-
-
-

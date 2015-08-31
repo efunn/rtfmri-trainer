@@ -27,9 +27,13 @@ class Trainer(object):
         with open('trainer_config.yaml') as f:
             CONFIG = yaml.load(f)
         self.exp_type = CONFIG['experiment-type']
+        self.playback_bool = CONFIG['playback-enabled']
         self.subj_id = CONFIG['subject-id']
         self.subj_dir = 'datasets/' + self.subj_id
-        fu.write_all_headers(self)
+        if self.exp_type == 'timed':
+            fu.write_all_headers_timed(self)
+        elif self.exp_type == 'block':
+            fu.write_all_headers_block(self)
 
         #################
         # set constants #
@@ -44,19 +48,23 @@ class Trainer(object):
         self.INDICATOR_COLOR_2 = 30,100,30
         self.GOOD_MSG_COLOR = 160,255,160
         self.BAD_MSG_COLOR = 255,160,160
+        self.A_MSG_COLOR = 160,160,255
+        self.B_MSG_COLOR = 230,230,160
         self.SENSOR_INPUT_OFFSET = np.array([0.5*self.SCREEN_WIDTH,
                                              0.5*self.SCREEN_HEIGHT])
         self.NEWTONS_2_PIXEL = 200
-        self.BLOCK_TIME = 30
+        self.BLOCK_TIME = CONFIG['block-length']
         self.RESET_HOLD_TIME = 0.5
         self.REACH_SUCCESS_TIME = 2.
-        self.NOISE_VAR = 0.025
+        self.NOISE_VAR_GOOD = 0.025
+        if not self.playback_bool:
+            self.NOISE_VAR_BAD = 10*self.NOISE_VAR_GOOD
+        else:
+            self.NOISE_VAR_BAD = self.NOISE_VAR_GOOD
         self.SAMPLE_PERIOD = 2.
         self.SAMPLE_FRAMES = self.SAMPLE_PERIOD*self.FRAME_RATE
         self.TRS_SHOW_UPDATE_RATE = 2
         self.TR_LIST = (0.125, .25, 0.5, 1., 2., 4.)
-        # self.TRS_SAMPLES_DICT = {tr: tr/self.SAMPLE_PERIOD for tr in self.TR_LIST}
-        # self.TRS_SUCCESS_DICT = {tr: self.REACH_SUCCESS_TIME/tr for tr in self.TR_LIST}
         self.TRS_SAMPLES_DICT = dict((tr, tr/self.SAMPLE_PERIOD)
                                      for tr in self.TR_LIST)
         self.TRS_SUCCESS_DICT = dict((tr, self.REACH_SUCCESS_TIME/tr)
@@ -146,6 +154,40 @@ class Trainer(object):
         self.input_pos = np.array([0.0,0.0])
         self.training_mode = True
 
+        #######################
+        # set block variables #
+        #######################
+        self.NUM_BLOCK_TRIALS = CONFIG['num-block-trials'] 
+        self.next_target = 'new'
+        self.first_feedback = CONFIG['first-trial-feedback'] 
+        self.first_noise = CONFIG['first-trial-noise']
+        self.next_feedback = self.first_feedback
+        self.next_noise = self.first_noise
+        self.set_noise()
+        self.BLOCK_TRS = self.BLOCK_TIME/self.tr
+        self.block_nfb_buffer = np.zeros(self.BLOCK_TRS)
+        self.block_tr_count = 0
+        self.total_block_count = 0
+        self.trial_block_count = 0
+
+        ##########################
+        # set playback variables #
+        ##########################
+        self.TIME_SHIFT = 6
+        self.PLAYBACK_TRS = self.BLOCK_TRS + self.TIME_SHIFT/self.tr
+        self.EXTRA_TRS = 2
+        self.playback_buffer_length = (self.BLOCK_TIME
+                                       + self.EXTRA_TRS)*self.FRAME_RATE
+        self.move_counter = 0
+        self.reset_playback_buffers()
+
+    def reset_playback_buffers(self):
+        self.playback_counter = 0
+        self.playback_time_buffer = np.zeros(self.playback_buffer_length)
+        self.playback_pos_buffer = np.zeros((2,self.playback_buffer_length))
+        self.playback_nfb_buffer = np.zeros(self.playback_buffer_length)
+        self.playback_nfb_points = np.zeros(self.PLAYBACK_TRS)
+
 
     def get_pos(self):
         if self.input_mode=='mouse' or not(SENSOR_ACTIVE):
@@ -155,13 +197,23 @@ class Trainer(object):
             return (self.SENSOR_INPUT_OFFSET[0]+self.NEWTONS_2_PIXEL*f_out[0], 
                     self.SENSOR_INPUT_OFFSET[1]+self.NEWTONS_2_PIXEL*f_out[1])
 
+
     def set_trial(self):
         self.set_dof(self.next_dof)
         self.target.set_fb_mode(self.next_ir)
         self.set_training_mode(self.next_visible)
 
+
+    def set_noise(self):
+        if self.next_noise == 'good':
+            self.noise_var = self.NOISE_VAR_GOOD
+        elif self.next_noise == 'bad':
+            self.noise_var = self.NOISE_VAR_BAD
+
+
     def set_training_mode(self, bool_arg):
         self.training_mode = bool_arg
+
 
     def set_tr(self, tr):
         if tr == 0.125:
@@ -256,8 +308,7 @@ class Trainer(object):
                 self.target.draw_bool = False
 
             if self.cursor.has_left:
-                # gr.check_error_metric_time(self, time_passed)
-                gr.frame_based_updates(self)
+                gr.frame_based_updates_timed(self)
                 self.timers['signal'].update(time_passed)
                 self.timers['tr'].update(time_passed)
                 if self.timers['signal'].time_limit_hit:
@@ -280,6 +331,11 @@ class Trainer(object):
         # main loop for block feedback experiment #
         ###########################################
         self.target.draw_bool = False 
+        if self.playback_bool:
+            self.set_dof(1)
+        else:
+            self.set_dof(1)
+        self.target.set_fb_mode('hrf')
 
         while True:
             time_passed = self.clock.tick_busy_loop(self.FRAME_RATE)
@@ -288,39 +344,63 @@ class Trainer(object):
             self.cursor.update(self.input_pos)
             self.target.update(self.cursor.pos)
 
-            #################
-            ### new logic ###
-            #################
 
             if not(self.timers['reset_hold'].time_limit_hit):
                 gr.check_in_start(self, time_passed)
-                self.target.draw_bool = True
+                if self.next_target == 'new':
+                    self.target.draw_bool = True
             elif not(self.cursor.has_left):
                 gr.check_if_left(self)
                 self.target.draw_bool = False
+            # debugging
+            # self.target.draw_bool = True
 
             if self.cursor.has_left:
-                # gr.check_error_metric_time(self, time_passed)
-                gr.frame_based_updates(self)
+                gr.frame_based_updates_block(self)
                 self.timers['signal'].update(time_passed)
                 self.timers['tr'].update(time_passed)
+                self.timers['block'].update(time_passed)
                 if self.timers['signal'].time_limit_hit:
                     gr.signal_based_updates(self)
                     if self.timers['tr'].time_limit_hit:
                         gr.tr_based_updates(self)
-
-            #####################
-            ### end new logic ###
-            #####################
+                        if self.timers['block'].time_limit_hit:
+                            gr.block_based_updates(self)
 
             self.draw_background()
-            self.therm.draw(self.cursor.has_left,
-                            self.target.error_metric)
+            therm_draw_bool = ((self.cursor.has_left and
+                                self.next_feedback == 'continuous')
+                               or (self.total_block_count > 0 
+                                   and not self.cursor.has_left))
+            score = self.target.error_metric
+            self.therm.draw(therm_draw_bool,
+                            score)
             self.target.draw()
             if not self.cursor.has_left:
                 self.draw_instructions_block()
+            else:
+                self.therm.set_score_color('norm')
             self.cursor.draw()
             pygame.display.flip()
+
+    def run_playback(self):
+        while self.move_counter > 0:
+            time_passed = self.clock.tick_busy_loop(self.FRAME_RATE)
+            self.check_input()
+            self.cursor.update(self.playback_pos_buffer[:,
+                                                        self.playback_counter])
+            self.indicator_rad = int(self.INDIC_RAD_MAX*(
+                                     self.playback_time_buffer[self.playback_counter]
+                                     /float(self.timers['block'].MAX_TIME)))
+            self.draw_background()
+            self.therm.draw(True,
+                            self.playback_nfb_buffer[self.playback_counter])
+            # debugging
+            # self.target.draw()
+            self.cursor.draw()
+            pygame.display.flip()
+            self.move_counter -= 1
+            self.playback_counter += 1
 
     def set_dof(self, dof):
         self.dof = dof
@@ -335,26 +415,26 @@ class Trainer(object):
             self.draw_indicator()
 
     def draw_instructions_block(self):
-        if True:
+        if self.next_target == 'new':
             top_msg = 'New target'
             top_color = self.GOOD_MSG_COLOR
         else:
             top_msg = 'Same target'
             top_color = self.BAD_MSG_COLOR
 
-        if True:
+        if self.next_feedback == 'continuous':
             mid_msg = 'Continuous feedback'
-            mid_color = self.GOOD_MSG_COLOR
+            mid_color = self.A_MSG_COLOR
         else:
             mid_msg = 'Intermittent feedback'
-            mid_color = self.BAD_MSG_COLOR
+            mid_color = self.B_MSG_COLOR
 
-        if True:
+        if self.next_noise == 'good':
             btm_msg = 'Good signal'
-            btm_color = self.GOOD_MSG_COLOR
+            btm_color = self.A_MSG_COLOR
         else:
             btm_msg = 'Bad signal'
-            btm_color = self.BAD_MSG_COLOR
+            btm_color = self.B_MSG_COLOR
 
         gg.draw_msg(self.screen, top_msg,
                     color=top_color,
@@ -364,10 +444,11 @@ class Trainer(object):
                     color=mid_color,
                     center=(self.screen_mid[0],
                             self.screen_mid[1]))
-        gg.draw_msg(self.screen, btm_msg,
-                    color=btm_color,
-                    center=(self.screen_mid[0],
-                            self.screen_mid[1]+75))
+        if not self.playback_bool:
+            gg.draw_msg(self.screen, btm_msg,
+                        color=btm_color,
+                        center=(self.screen_mid[0],
+                                self.screen_mid[1]+75))
 
     def draw_instructions_timed(self):
         if self.next_visible:

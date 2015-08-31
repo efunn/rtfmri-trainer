@@ -2,15 +2,18 @@
 # rtfmri-trainer configuration file #
 #####################################
 
-# experiment-type: timed, block, playback
-experiment-type: block
+# experiment-type: timed, block
+experiment-type: block #block
 subject-id: demo
-fullscreen: False
+fullscreen: True #False
 
 # timed trial variables
 visible-trials: 2
 invisible-trials: 3
 
 # block trial variables
+num-block-trials: 4 # successful targets
 block-length: 30 # seconds
-first-trial: continuous # continuous, intermittent, playback
+first-trial-feedback: intermittent # continuous, intermittent
+first-trial-noise: good # good, bad
+playback-enabled: True # True, False
