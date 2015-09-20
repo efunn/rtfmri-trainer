@@ -332,7 +332,7 @@ class Trainer(object):
         ###########################################
         self.target.draw_bool = False 
         if self.playback_bool:
-            self.set_dof(1)
+            self.set_dof(2)
         else:
             self.set_dof(1)
         self.target.set_fb_mode('hrf')
